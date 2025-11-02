@@ -81,3 +81,25 @@ ORDER BY mes DESC;
 
 COMMIT;
 
+-- =============================
+-- Nueva tabla: fact_transacciones_cripto
+-- Base para cargas desde Excel/CSV
+-- =============================
+
+-- Esquema de transacciones cripto
+CREATE TABLE IF NOT EXISTS fact_transacciones_cripto (
+    id SERIAL PRIMARY KEY,
+    fecha DATE NOT NULL,
+    usuario TEXT NOT NULL,
+    tipo_transaccion TEXT NOT NULL,      -- compra, venta, deposito, retiro, etc.
+    criptomoneda TEXT NOT NULL,          -- BTC, ETH, USDT, etc.
+    monto NUMERIC(38, 10) NOT NULL,      -- cantidad de cripto o importe según convención
+    tc NUMERIC(18, 8),                   -- tipo de cambio aplicado (opcional)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices sugeridos
+CREATE INDEX IF NOT EXISTS idx_ftc_fecha ON fact_transacciones_cripto(fecha);
+CREATE INDEX IF NOT EXISTS idx_ftc_usuario ON fact_transacciones_cripto(usuario);
+CREATE INDEX IF NOT EXISTS idx_ftc_cripto ON fact_transacciones_cripto(criptomoneda);
+

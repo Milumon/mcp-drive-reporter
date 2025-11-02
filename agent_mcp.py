@@ -74,42 +74,52 @@ class MCPReportsAgent:
                 async with ClientSession(pg_read, pg_write) as pg_session:
                     await pg_session.initialize()
                     
-                    # Get ventas data
-                    ventas_result = await pg_session.call_tool(
-                        "query_ventas",
+                    # Crypto-specific summaries
+                    totales_result = await pg_session.call_tool(
+                        "totales_compra_venta",
                         {"date_from": date_from, "date_to": date_to}
                     )
-                    logger.info("✅ Ventas data fetched")
-                    
-                    # Get KPIs
-                    kpis_result = await pg_session.call_tool(
-                        "get_kpis",
-                        {"date_from": date_from, "date_to": date_to}
-                    )
-                    logger.info("✅ KPIs fetched")
-                    
-                    # Get top products
-                    top_result = await pg_session.call_tool(
-                        "get_top_productos",
+                    top_cli_compra_result = await pg_session.call_tool(
+                        "top_clientes_compra",
                         {"date_from": date_from, "date_to": date_to, "limit": 5}
                     )
-                    logger.info("✅ Top products fetched")
+                    top_cli_venta_result = await pg_session.call_tool(
+                        "top_clientes_venta",
+                        {"date_from": date_from, "date_to": date_to, "limit": 5}
+                    )
+                    top_mon_compra_result = await pg_session.call_tool(
+                        "top_monedas_compra",
+                        {"date_from": date_from, "date_to": date_to, "limit": 5}
+                    )
+                    top_mon_venta_result = await pg_session.call_tool(
+                        "top_monedas_venta",
+                        {"date_from": date_from, "date_to": date_to, "limit": 5}
+                    )
+                    logger.info("✅ Crypto summaries fetched")
             
             # Step 2: Process results and generate report
             logger.info("📝 Step 2/4: Generating report...")
             
             # Extract text from MCP responses
-            ventas_text = self._extract_text(ventas_result)
-            kpis_text = self._extract_text(kpis_result)
-            top_text = self._extract_text(top_result)
+            totales_text = self._extract_text(totales_result)
+            top_cli_compra_text = self._extract_text(top_cli_compra_result)
+            top_cli_venta_text = self._extract_text(top_cli_venta_result)
+            top_mon_compra_text = self._extract_text(top_mon_compra_result)
+            top_mon_venta_text = self._extract_text(top_mon_venta_result)
             
             # Generate HTML report
             html_report = self._generate_html_report(
-                date_from, date_to, ventas_text, kpis_text, top_text
+                date_from,
+                date_to,
+                totales_text,
+                top_cli_compra_text,
+                top_cli_venta_text,
+                top_mon_compra_text,
+                top_mon_venta_text,
             )
             
             # Generate CSV (simplified for demo)
-            csv_report = self._generate_csv_report(ventas_text)
+            csv_report = self._generate_csv_report("fact_transacciones_cripto")
             
             logger.info("✅ Report generated")
             
@@ -117,7 +127,7 @@ class MCPReportsAgent:
             logger.info("📧 Step 3/4: Preparing email...")
             
             if not subject:
-                subject = f"Reporte de Ventas - {date_from} al {date_to}"
+                subject = f"Reporte Cripto - {date_from} al {date_to}"
             
             # Encode CSV as base64
             import base64
@@ -174,18 +184,20 @@ class MCPReportsAgent:
         self,
         date_from: str,
         date_to: str,
-        ventas_text: str,
-        kpis_text: str,
-        top_text: str
+        totales_text: str,
+        top_cli_compra_text: str,
+        top_cli_venta_text: str,
+        top_mon_compra_text: str,
+        top_mon_venta_text: str,
     ) -> str:
-        """Generate HTML report from text data."""
+        """Generate HTML report for crypto summaries."""
         html = f"""
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte de Ventas</title>
+    <title>Reporte Cripto</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -242,24 +254,34 @@ class MCPReportsAgent:
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Reporte de Ventas</h1>
+            <h1>📊 Reporte de Transacciones Cripto</h1>
             <p><strong>Periodo:</strong> {date_from} al {date_to}</p>
             <p><strong>Generado:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
         </div>
 
         <div class="section">
-            <h2>📈 KPIs</h2>
-            <pre>{kpis_text}</pre>
+            <h2>📈 Totales</h2>
+            <pre>{totales_text}</pre>
         </div>
 
         <div class="section">
-            <h2>🏆 Top Productos</h2>
-            <pre>{top_text}</pre>
+            <h2>👤 Top 5 Clientes - Compras</h2>
+            <pre>{top_cli_compra_text}</pre>
         </div>
 
         <div class="section">
-            <h2>📋 Detalle de Ventas</h2>
-            <pre>{ventas_text}</pre>
+            <h2>👤 Top 5 Clientes - Ventas</h2>
+            <pre>{top_cli_venta_text}</pre>
+        </div>
+
+        <div class="section">
+            <h2>💠 Top 5 Monedas - Compras</h2>
+            <pre>{top_mon_compra_text}</pre>
+        </div>
+
+        <div class="section">
+            <h2>💠 Top 5 Monedas - Ventas</h2>
+            <pre>{top_mon_venta_text}</pre>
         </div>
 
         <div class="footer">

@@ -11,6 +11,15 @@ import os
 from dotenv import load_dotenv
 
 from agent_mcp import MCPReportsAgent
+from typing import List, Dict, Any
+import json
+import re
+import time
+import os
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
 
 # Load environment variables
 load_dotenv()
@@ -141,8 +150,14 @@ def main():
         - [README](README.md)
         """)
     
-    # Main content
-    col1, col2 = st.columns([2, 1])
+    tabs = st.tabs(["Form", "Chat (LLM)"])
+
+    # =====================
+    # Tab 1: Form workflow
+    # =====================
+    with tabs[0]:
+        # Main content
+        col1, col2 = st.columns([2, 1])
     
     with col1:
         st.header("📅 Report Configuration")
@@ -244,100 +259,200 @@ def main():
         - 📎 **CSV Attachment** with full data
         """)
     
-    # Generate button
-    st.markdown("---")
-    
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-    
-    with col_btn2:
-        generate_button = st.button(
-            "🚀 Generate & Send Report",
-            type="primary",
-            use_container_width=True
-        )
-    
-    # Generate report
-    if generate_button:
-        # Validation
-        if date_from > date_to:
-            st.error("❌ Invalid date range!")
-            return
+        # Generate button
+        st.markdown("---")
         
-        if not recipients:
-            st.error("❌ Please add at least one recipient!")
-            return
+        col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
         
-        valid_recipients = [email for email in recipients if validate_email(email)]
-        if not valid_recipients:
-            st.error("❌ No valid email addresses found!")
-            return
-        
-        if not subject:
-            st.error("❌ Please enter an email subject!")
-            return
+        with col_btn2:
+            generate_button = st.button(
+                "🚀 Generate & Send Report",
+                type="primary",
+                use_container_width=True,
+                key="btn_form_generate"
+            )
         
         # Generate report
-        with st.spinner("🔄 Generating report... This may take a few moments..."):
-            try:
-                # Convert dates to strings
-                date_from_str = date_from.strftime('%Y-%m-%d')
-                date_to_str = date_to.strftime('%Y-%m-%d')
-                
-                # Run async function
-                result = asyncio.run(generate_report_async(
-                    date_from_str,
-                    date_to_str,
-                    valid_recipients,
-                    subject
-                ))
-                
-                # Show result
-                if result.get('status') == 'success':
-                    st.markdown('<div class="success-box">', unsafe_allow_html=True)
-                    st.markdown("## ✅ Report Sent Successfully!")
-                    st.markdown(f"""
-                    **Period:** {date_from_str} to {date_to_str}  
-                    **Recipients:** {', '.join(valid_recipients[:3])}{'...' if len(valid_recipients) > 3 else ''}  
-                    **Total Recipients:** {len(valid_recipients)}
-                    
-                    The report has been generated and sent via email. 
-                    Recipients should receive it shortly.
-                    """)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    # Show balloons
-                    st.balloons()
-                    
-                else:
-                    st.markdown('<div class="error-box">', unsafe_allow_html=True)
-                    st.markdown("## ❌ Error Generating Report")
-                    st.markdown(f"""
-                    **Error:** {result.get('message', 'Unknown error')}
-                    
-                    Please check:
-                    - Database connection is working
-                    - Gmail credentials are configured
-                    - Date range has data
-                    """)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    with st.expander("View error details"):
-                        st.json(result)
+        if generate_button:
+            # Validation
+            if date_from > date_to:
+                st.error("❌ Invalid date range!")
+                return
             
-            except Exception as e:
-                st.markdown('<div class="error-box">', unsafe_allow_html=True)
-                st.markdown("## ❌ Unexpected Error")
-                st.markdown(f"**Error:** {str(e)}")
-                st.markdown('</div>', unsafe_allow_html=True)
+            if not recipients:
+                st.error("❌ Please add at least one recipient!")
+                return
+            
+            valid_recipients = [email for email in recipients if validate_email(email)]
+            if not valid_recipients:
+                st.error("❌ No valid email addresses found!")
+                return
+            
+            if not subject:
+                st.error("❌ Please enter an email subject!")
+                return
+            
+            # Generate report
+            with st.spinner("🔄 Generating report... This may take a few moments..."):
+                try:
+                    # Convert dates to strings
+                    date_from_str = date_from.strftime('%Y-%m-%d')
+                    date_to_str = date_to.strftime('%Y-%m-%d')
+                    
+                    # Run async function
+                    result = asyncio.run(generate_report_async(
+                        date_from_str,
+                        date_to_str,
+                        valid_recipients,
+                        subject
+                    ))
+                    
+                    # Show result
+                    if result.get('status') == 'success':
+                        st.markdown('<div class="success-box">', unsafe_allow_html=True)
+                        st.markdown("## ✅ Report Sent Successfully!")
+                        st.markdown(f"""
+                        **Period:** {date_from_str} to {date_to_str}  
+                        **Recipients:** {', '.join(valid_recipients[:3])}{'...' if len(valid_recipients) > 3 else ''}  
+                        **Total Recipients:** {len(valid_recipients)}
+                        
+                        The report has been generated and sent via email. 
+                        Recipients should receive it shortly.
+                        """)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # Show balloons
+                        st.balloons()
+                        
+                    else:
+                        st.markdown('<div class="error-box">', unsafe_allow_html=True)
+                        st.markdown("## ❌ Error Generating Report")
+                        st.markdown(f"""
+                        **Error:** {result.get('message', 'Unknown error')}
+                        
+                        Please check:
+                        - Database connection is working
+                        - Gmail credentials are configured
+                        - Date range has data
+                        """)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        with st.expander("View error details"):
+                            st.json(result)
                 
-                with st.expander("View full error"):
-                    st.exception(e)
+                except Exception as e:
+                    st.markdown('<div class="error-box">', unsafe_allow_html=True)
+                    st.markdown("## ❌ Unexpected Error")
+                    st.markdown(f"**Error:** {str(e)}")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    with st.expander("View full error"):
+                        st.exception(e)
     
+    # =====================
+    # Tab 2: Chat workflow
+    # =====================
+    with tabs[1]:
+        st.subheader("💬 Ask the assistant to generate and email the report")
+        st.caption("Powered by OpenAI. Set OPENAI_API_KEY in your .env or Streamlit secrets.")
+
+        if 'chat' not in st.session_state:
+            st.session_state.chat = []  # list of dicts {role, content}
+
+        api_key = os.getenv('OPENAI_API_KEY') or st.secrets.get('OPENAI_API_KEY') if hasattr(st, 'secrets') else None
+        if not api_key:
+            st.warning("OPENAI_API_KEY not configured. Add it to your .env or Streamlit secrets.")
+        elif OpenAI is None:
+            st.warning("openai package not available. Please pip install -r requirements.txt")
+        else:
+            client = OpenAI(api_key=api_key)
+
+            # System prompt guiding structured extraction
+            system_prompt = (
+                "You are an assistant that helps collect parameters to generate a crypto transactions report and send by email. "
+                "Always keep conversation brief. When you have all required parameters, return ONLY a JSON object (no extra text) with this shape: "
+                "{\n  'action': 'send_report',\n  'params': { 'date_from': 'YYYY-MM-DD', 'date_to': 'YYYY-MM-DD', 'recipients': ['a@b.com'], 'subject': '...'}\n}. "
+                "If any field is missing, ask a short follow-up question to get it. Dates must be ISO YYYY-MM-DD."
+            )
+
+            # Render chat history
+            for msg in st.session_state.chat:
+                with st.chat_message(msg['role']):
+                    st.markdown(msg['content'])
+
+            user_input = st.chat_input("Ask for a report, e.g., 'Send report for March to finance@company.com'")
+            if user_input:
+                st.session_state.chat.append({"role": "user", "content": user_input})
+                with st.chat_message("user"):
+                    st.markdown(user_input)
+
+                # Build messages for the API
+                messages = [{"role": "system", "content": system_prompt}] + st.session_state.chat
+
+                with st.chat_message("assistant"):
+                    with st.spinner("Thinking..."):
+                        try:
+                            resp = client.chat.completions.create(
+                                model="gpt-4o-mini",
+                                messages=messages,
+                                temperature=0.2,
+                            )
+                            ai_text = resp.choices[0].message.content
+                        except Exception as e:
+                            ai_text = f"Sorry, error calling the model: {e}"
+                    st.markdown(ai_text or "")
+                st.session_state.chat.append({"role": "assistant", "content": ai_text or ""})
+
+                # Try to parse a JSON action
+                def extract_json(s: str) -> Dict[str, Any] | None:
+                    if not s:
+                        return None
+                    # Look for fenced code block JSON
+                    m = re.search(r"\{[\s\S]*\}", s)
+                    if m:
+                        try:
+                            return json.loads(m.group(0).replace("'", '"'))
+                        except Exception:
+                            return None
+                    return None
+
+                action = extract_json(ai_text or "")
+                if action and action.get('action') == 'send_report':
+                    params = action.get('params', {})
+                    date_from = params.get('date_from')
+                    date_to = params.get('date_to')
+                    recipients = params.get('recipients') or []
+                    subject = params.get('subject') or f"Reporte Cripto - {date_from} al {date_to}"
+
+                    # Basic validation
+                    ok = True
+                    try:
+                        datetime.strptime(date_from, '%Y-%m-%d')
+                        datetime.strptime(date_to, '%Y-%m-%d')
+                    except Exception:
+                        ok = False
+                    if not isinstance(recipients, list) or not recipients:
+                        ok = False
+
+                    if ok:
+                        with st.chat_message("assistant"):
+                            with st.spinner("🔄 Generating and sending the report..."):
+                                try:
+                                    result = asyncio.run(generate_report_async(date_from, date_to, recipients, subject))
+                                    if result.get('status') == 'success':
+                                        st.success(f"✅ Report sent to: {', '.join(recipients)}")
+                                    else:
+                                        st.error(f"❌ Error: {result.get('message')}")
+                                except Exception as e:
+                                    st.error(f"❌ Unexpected error: {e}")
+
+        st.caption("Note: The assistant collects parameters only. The actual data querying and email are performed by MCP servers.")
+
     # Footer
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666; font-size: 0.9rem;'>
-        <p>MCP Reports Agent | Powered by <a href='https://github.com/modelcontextprotocol/python-sdk'>MCP Python SDK</a></p>
+        <p>MCP Reports Agent | Powered by <a href='https://github.com/modelcontextprotocol/python-sdk'>MCP Python SDK</a> & OpenAI</p>
         <p>© 2025 - Built with Streamlit</p>
     </div>
     """, unsafe_allow_html=True)

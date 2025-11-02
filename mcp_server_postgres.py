@@ -44,6 +44,18 @@ def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
 
+def _fetch_all(sql: str, params: dict) -> list[dict]:
+    """Helper to run a query and return list of dict rows."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+        return rows
+    finally:
+        conn.close()
+
+
 @server.list_tools()
 async def list_tools() -> list[Tool]:
     """List available database tools."""
@@ -121,6 +133,71 @@ async def list_tools() -> list[Tool]:
                 "required": ["sql"],
             },
         ),
+        # Crypto tools
+        Tool(
+            name="top_clientes_compra",
+            description="Top N users by total purchased (fact_transacciones_cripto)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date_from": {"type": "string"},
+                    "date_to": {"type": "string"},
+                    "limit": {"type": "integer", "default": 5}
+                },
+                "required": ["date_from", "date_to"]
+            },
+        ),
+        Tool(
+            name="top_clientes_venta",
+            description="Top N users by total sold (fact_transacciones_cripto)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date_from": {"type": "string"},
+                    "date_to": {"type": "string"},
+                    "limit": {"type": "integer", "default": 5}
+                },
+                "required": ["date_from", "date_to"]
+            },
+        ),
+        Tool(
+            name="top_monedas_compra",
+            description="Top N coins by amount purchased (fact_transacciones_cripto)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date_from": {"type": "string"},
+                    "date_to": {"type": "string"},
+                    "limit": {"type": "integer", "default": 5}
+                },
+                "required": ["date_from", "date_to"]
+            },
+        ),
+        Tool(
+            name="top_monedas_venta",
+            description="Top N coins by amount sold (fact_transacciones_cripto)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date_from": {"type": "string"},
+                    "date_to": {"type": "string"},
+                    "limit": {"type": "integer", "default": 5}
+                },
+                "required": ["date_from", "date_to"]
+            },
+        ),
+        Tool(
+            name="totales_compra_venta",
+            description="Totals for purchases and sales in date range (fact_transacciones_cripto)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date_from": {"type": "string"},
+                    "date_to": {"type": "string"}
+                },
+                "required": ["date_from", "date_to"]
+            },
+        ),
     ]
 
 
@@ -137,6 +214,21 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             return await get_top_productos(arguments["date_from"], arguments["date_to"], limit)
         elif name == "execute_custom_query":
             return await execute_custom_query(arguments["sql"])
+        # Crypto summaries
+        elif name == "top_clientes_compra":
+            limit = arguments.get("limit", 5)
+            return await top_clientes(date_from=arguments["date_from"], date_to=arguments["date_to"], tipo="compra", limit=limit)
+        elif name == "top_clientes_venta":
+            limit = arguments.get("limit", 5)
+            return await top_clientes(date_from=arguments["date_from"], date_to=arguments["date_to"], tipo="venta", limit=limit)
+        elif name == "top_monedas_compra":
+            limit = arguments.get("limit", 5)
+            return await top_monedas(date_from=arguments["date_from"], date_to=arguments["date_to"], tipo="compra", limit=limit)
+        elif name == "top_monedas_venta":
+            limit = arguments.get("limit", 5)
+            return await top_monedas(date_from=arguments["date_from"], date_to=arguments["date_to"], tipo="venta", limit=limit)
+        elif name == "totales_compra_venta":
+            return await totales_compra_venta(arguments["date_from"], arguments["date_to"])
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as e:
@@ -183,6 +275,76 @@ async def query_ventas(date_from: str, date_to: str) -> list[TextContent]:
         return [TextContent(type="text", text=result_text)]
     finally:
         conn.close()
+
+
+async def top_clientes(date_from: str, date_to: str, tipo: str, limit: int = 5) -> list[TextContent]:
+    """Top N clientes by total monto for tipo (compra/venta)."""
+    sql = """
+        SELECT 
+            usuario,
+            SUM(monto * COALESCE(tc, 1)) AS total_monto,
+            COUNT(*) AS transacciones
+        FROM fact_transacciones_cripto
+        WHERE fecha BETWEEN %(date_from)s AND %(date_to)s
+          AND LOWER(tipo_transaccion) = %(tipo)s
+        GROUP BY usuario
+        ORDER BY total_monto DESC
+        LIMIT %(limit)s
+    """
+    rows = _fetch_all(sql, {"date_from": date_from, "date_to": date_to, "tipo": tipo.lower(), "limit": limit})
+    title = "Top clientes con mayor compra" if tipo.lower() == "compra" else "Top clientes con mayor venta"
+    text = f"🏆 {title} ({date_from} → {date_to})\n\n"
+    if rows:
+        for i, r in enumerate(rows, 1):
+            text += f"{i}. {r['usuario']} — Total: {r['total_monto']:,.6f} ({r['transacciones']} tx)\n"
+    else:
+        text += "Sin datos para el rango."
+    return [TextContent(type="text", text=text)]
+
+
+async def top_monedas(date_from: str, date_to: str, tipo: str, limit: int = 5) -> list[TextContent]:
+    """Top N criptomonedas by total monto for tipo (compra/venta)."""
+    sql = """
+        SELECT 
+            criptomoneda,
+            SUM(monto * COALESCE(tc, 1)) AS total_monto,
+            COUNT(*) AS transacciones
+        FROM fact_transacciones_cripto
+        WHERE fecha BETWEEN %(date_from)s AND %(date_to)s
+          AND LOWER(tipo_transaccion) = %(tipo)s
+        GROUP BY criptomoneda
+        ORDER BY total_monto DESC
+        LIMIT %(limit)s
+    """
+    rows = _fetch_all(sql, {"date_from": date_from, "date_to": date_to, "tipo": tipo.lower(), "limit": limit})
+    title = "Top monedas más compradas" if tipo.lower() == "compra" else "Top monedas más vendidas"
+    text = f"💠 {title} ({date_from} → {date_to})\n\n"
+    if rows:
+        for i, r in enumerate(rows, 1):
+            text += f"{i}. {r['criptomoneda']} — Total: {r['total_monto']:,.6f} ({r['transacciones']} tx)\n"
+    else:
+        text += "Sin datos para el rango."
+    return [TextContent(type="text", text=text)]
+
+
+async def totales_compra_venta(date_from: str, date_to: str) -> list[TextContent]:
+    """Totals for purchases and sales in date range."""
+    sql = """
+        SELECT LOWER(tipo_transaccion) AS tipo, COALESCE(SUM(monto * COALESCE(tc, 1)), 0) AS total
+        FROM fact_transacciones_cripto
+        WHERE fecha BETWEEN %(date_from)s AND %(date_to)s
+          AND LOWER(tipo_transaccion) IN ('compra', 'venta')
+        GROUP BY LOWER(tipo_transaccion)
+    """
+    rows = _fetch_all(sql, {"date_from": date_from, "date_to": date_to})
+    tot_compra = next((r['total'] for r in rows if r['tipo'] == 'compra'), 0)
+    tot_venta = next((r['total'] for r in rows if r['tipo'] == 'venta'), 0)
+    text = (
+        f"📊 Totales ({date_from} → {date_to})\n\n"
+        f"• Total comprado: {tot_compra:,.6f}\n"
+        f"• Total vendido: {tot_venta:,.6f}\n"
+    )
+    return [TextContent(type="text", text=text)]
 
 
 async def get_kpis(date_from: str, date_to: str) -> list[TextContent]:
