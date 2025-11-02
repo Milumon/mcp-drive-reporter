@@ -380,8 +380,13 @@ def main():
                 with st.chat_message(msg['role']):
                     st.markdown(msg['content'])
 
-            user_input = st.chat_input("Ask for a report, e.g., 'Send report for March to finance@company.com'")
-            if user_input:
+            user_input = st.text_input(
+                "Your message",
+                key="chat_user_input",
+                placeholder="Ask for a report, e.g., 'Send report for March to finance@company.com'"
+            )
+            send_click = st.button("Send", key="chat_send_btn")
+            if send_click and user_input:
                 st.session_state.chat.append({"role": "user", "content": user_input})
                 with st.chat_message("user"):
                     st.markdown(user_input)
@@ -398,8 +403,11 @@ def main():
                                 temperature=0.2,
                             )
                             ai_text = resp.choices[0].message.content
-                        except Exception as e:
-                            ai_text = f"Sorry, error calling the model: {e}"
+                        except Exception:
+                            ai_text = (
+                                "Sorry, the LLM call failed (likely invalid OPENAI_API_KEY). "
+                                "Set a valid key in your .env or Streamlit secrets and try again."
+                            )
                     st.markdown(ai_text or "")
                 st.session_state.chat.append({"role": "assistant", "content": ai_text or ""})
 
