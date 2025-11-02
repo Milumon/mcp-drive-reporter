@@ -14,7 +14,8 @@ A powerful reporting agent that uses the [official MCP Python SDK](https://githu
 ## ✨ Features
 
 - 🤖 **MCP SDK Integration** - Uses official Model Context Protocol SDK
-- 🌐 **Streamlit Web UI** - Beautiful, user-friendly interface
+- 🌐 **Streamlit Web UI** - Beautiful, user-friendly interface (Form + Chat)
+- 🧠 **LLM Assistant (OpenAI)** - Optional chat to collect parameters and trigger the report
 - 📊 **Automated KPIs** - Total sales, averages, top products, and more
 - 📧 **Email Reports** - HTML reports with CSV attachments
 - 🔒 **Secure** - OAuth2 support, environment variables, TLS connections
@@ -27,17 +28,17 @@ A powerful reporting agent that uses the [official MCP Python SDK](https://githu
 
 ### Streamlit Web Interface
 
-![Streamlit UI](https://via.placeholder.com/800x400/1f77b4/ffffff?text=MCP+Drive+Reporter+Web+UI)
+![Streamlit UI](/Users/jvegal/01_projects/02_sundaihack/20251102/mcp-reports-agent/screenshot_app.png)
 
-### Email Report Example
+### Email Report Example (Crypto)
 
-The generated reports include:
-- 💰 Total Sales
-- 📈 Average per Transaction
-- 🛒 Total Transactions
-- 🏆 Top 5 Products
-- 📋 Detailed Sales Table
-- 📎 CSV Attachment
+The generated crypto reports include (based on Σ monto × tc):
+- 📊 Totals purchased and sold in period
+- 👤 Top 5 clients by purchases
+- 👤 Top 5 clients by sales
+- 💠 Top 5 coins purchased
+- 💠 Top 5 coins sold
+- 📎 CSV attachment (summary)
 
 ---
 
@@ -94,6 +95,14 @@ GMAIL_APP_PASSWORD=your_16_char_app_password
 2. Generate password for "Mail"
 3. Copy the 16-character password (no spaces)
 
+**Optional (LLM Chat):**
+
+Add your OpenAI key either in shell or `.env`/Streamlit secrets:
+
+```bash
+export OPENAI_API_KEY=sk-...yourkey...
+```
+
 ---
 
 ## 💻 Usage
@@ -105,6 +114,10 @@ streamlit run app.py
 ```
 
 Then open http://localhost:8501 in your browser.
+
+Tabs:
+- Form: choose date range, recipients, subject, and send the report.
+- Chat (LLM): ask for a report in natural language; the assistant extracts the parameters and triggers the email.
 
 ### Option 2: Command Line
 
@@ -179,14 +192,14 @@ Configure in `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```
 mcp-drive-reporter/
-├── app.py                      # 🌐 Streamlit web interface
+├── app.py                      # 🌐 Streamlit web interface (Form + Chat)
 ├── agent_mcp.py                # 🤖 MCP client/orchestrator
 ├── mcp_server_postgres.py      # 🗄️ PostgreSQL MCP server
 ├── mcp_server_gmail.py         # 📧 Gmail MCP server
 ├── report_generator.py         # 📊 Report generation
 ├── setup_gmail_oauth.py        # 🔐 OAuth2 helper
 ├── init_db.sql                 # 🗃️ Database initialization
-├── requirements.txt            # 📦 Dependencies
+├── requirements.txt            # 📦 Dependencies (MCP, Streamlit, OpenAI)
 ├── env.example                 # ⚙️ Configuration template
 └── .streamlit/
     └── config.toml             # 🎨 Streamlit theme
@@ -205,13 +218,15 @@ mcp-drive-reporter/
 
 ## 🛠️ MCP Tools
 
-### PostgreSQL Server Tools
+### PostgreSQL Server Tools (Crypto)
 
 | Tool | Description |
 |------|-------------|
-| `query_ventas` | Query sales data for a date range |
-| `get_kpis` | Get aggregated KPIs (sales, averages, etc.) |
-| `get_top_productos` | Get top N products by sales |
+| `top_clientes_compra` | Top clients by purchases in date range (Σ monto × tc) |
+| `top_clientes_venta` | Top clients by sales in date range (Σ monto × tc) |
+| `top_monedas_compra` | Top coins purchased in date range (Σ monto × tc) |
+| `top_monedas_venta` | Top coins sold in date range (Σ monto × tc) |
+| `totales_compra_venta` | Totals purchased and sold (Σ monto × tc) |
 | `execute_custom_query` | Execute custom SQL queries |
 
 ### Gmail Server Tools

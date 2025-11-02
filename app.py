@@ -26,7 +26,7 @@ load_dotenv()
 
 # Page configuration
 st.set_page_config(
-    page_title="MCP - DB to Email",
+    page_title="MCP - Good Queries",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -113,7 +113,7 @@ def main():
     """Main Streamlit app."""
     
     # Header
-    st.markdown('<h1 class="main-header">📊 MCP - DB to Email</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">📊 MCP - Good Queries</h1>', unsafe_allow_html=True)
     st.markdown("---")
     
     # Sidebar - Information

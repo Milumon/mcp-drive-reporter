@@ -1,19 +1,21 @@
-# MCP Reports Agent - Reto 1
+# MCP Good Queries
 
-Agente de reportes que ejecuta consultas en PostgreSQL mediante un MCP, genera reportes (tabla y métricas) y los envía por correo usando un MCP de Gmail.
+Generate crypto transaction summaries from PostgreSQL via MCP and email them with Gmail. Includes a Streamlit web UI and an optional OpenAI-powered chat to collect parameters and trigger the report.
 
 ## 🎯 MCP SDK Implementation
 
-This project uses the [official MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) to create proper MCP servers that can be used by LLMs like Claude.
+This project uses the [official MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) to expose proper MCP servers, and a Streamlit UI (with optional OpenAI chat) to run reports.
 
 **Key Features:**
 - ✅ LLM-compatible (works with Claude Desktop)
-- ✅ Follows MCP standard protocol
+- ✅ Follows the MCP standard protocol
 - ✅ Dynamic tool discovery
 - ✅ Part of the MCP ecosystem
-- 📚 See [MCP_SDK_GUIDE.md](MCP_SDK_GUIDE.md) for complete guide
+- 📚 See [MCP_SDK_GUIDE.md](MCP_SDK_GUIDE.md) for a complete guide
+- 🌐 Streamlit web app to configure and send reports
+- 🧠 Optional LLM chat (OpenAI) to collect parameters interactively
 
-## 📋 Arquitectura
+## 📋 Architecture
 
 ```
 [Claude/LLM/User] → [agent_mcp.py (MCP Client)]
@@ -23,36 +25,36 @@ This project uses the [official MCP Python SDK](https://github.com/modelcontextp
 ```
 
 **Components:**
-- **agent_mcp.py** - MCP client that orchestrates the workflow
-- **mcp_server_postgres.py** - MCP server exposing database tools
-- **mcp_server_gmail.py** - MCP server exposing email tools
-- **report_generator.py** - Shared report generation module
+- **agent_mcp.py** – MCP client/orchestrator
+- **mcp_server_postgres.py** – MCP server exposing DB tools
+- **mcp_server_gmail.py** – MCP server exposing email tools
+- **report_generator.py** – HTML/CSV generator (legacy helper)
 
-## 🛠️ Requisitos Previos
+## 🛠️ Prerequisites
 
 - Python 3.9+
-- PostgreSQL 12+ (local o remoto)
-- Cuenta de Gmail con OAuth2 configurado
-- Google Cloud Project con Gmail API habilitada
+- PostgreSQL 12+ (local or remote)
+- Gmail account (App Password recommended for dev)
+- Optional: OpenAI API key for chat
 
-## 📦 Instalación
+## 📦 Installation
 
-### 1. Clonar e instalar dependencias
+### 1) Install dependencies
 
 ```bash
 cd mcp-reports-agent
 pip install -r requirements.txt
 ```
 
-### 2. Configurar variables de entorno
+### 2) Environment variables
 
-Copia el archivo de ejemplo y configura tus credenciales:
+Copy the example and edit your values:
 
 ```bash
 cp .env.example .env
 ```
 
-Edita `.env` con tus valores:
+Example `.env` (OAuth2 fields optional if using App Password):
 
 ```env
 # PostgreSQL
@@ -60,25 +62,37 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=reports_db
 DB_USER=postgres
-DB_PASS=tu_password
+DB_PASS=your_password
 
 # Gmail OAuth2
-GMAIL_CLIENT_ID=tu_client_id.apps.googleusercontent.com
-GMAIL_CLIENT_SECRET=tu_client_secret
-GMAIL_REFRESH_TOKEN=tu_refresh_token
+GMAIL_CLIENT_ID=your_client_id.apps.googleusercontent.com
+GMAIL_CLIENT_SECRET=your_client_secret
+GMAIL_REFRESH_TOKEN=your_refresh_token
 
 # O usar App Password (más simple)
-GMAIL_APP_PASSWORD=tu_app_password_16_caracteres
-GMAIL_FROM=tu_email@gmail.com
+GMAIL_APP_PASSWORD=your_16_char_app_password
+GMAIL_FROM=your_email@gmail.com
+
+# Optional LLM (Streamlit chat)
+# OPENAI_API_KEY=sk-your_api_key
 ```
 
-### 3. Inicializar la base de datos
+### 3) Initialize the database
 
 ```bash
 psql -h localhost -U postgres -d reports_db -f init_db.sql
 ```
 
-### 4. Configurar Gmail OAuth2
+### 4) (Optional) Load data from Excel
+
+Place your file and run:
+
+```bash
+python3 load_crypto_transactions.py --file /path/to/transacciones_cripto.xlsx
+```
+
+Expected columns (case/accents tolerant): `fecha, usuario, tipo_transaccion, criptomoneda, monto, tc`.
+
 
 #### Opción A: App Password (Recomendado para desarrollo)
 
@@ -97,7 +111,17 @@ psql -h localhost -U postgres -d reports_db -f init_db.sql
 python setup_gmail_oauth.py
 ```
 
-## 🚀 Uso
+## 🚀 Usage
+
+### Streamlit Web UI
+
+```bash
+streamlit run app.py
+```
+
+Tabs:
+- Form: pick dates, recipients, subject, and send the report.
+- Chat (LLM): ask for a report in natural language; the assistant extracts parameters and triggers the email. Set `OPENAI_API_KEY` in `.env` or Streamlit secrets.
 
 ### Test MCP Servers
 
@@ -107,18 +131,18 @@ python3 agent_mcp.py --test
 
 This will test both PostgreSQL and Gmail MCP servers and list available tools.
 
-### Ejecutar el agente manualmente
+### Run the agent (CLI)
 
 ```bash
 python3 agent_mcp.py
 ```
 
-El agente te pedirá los parámetros del reporte:
-- Fecha desde (YYYY-MM-DD)
-- Fecha hasta (YYYY-MM-DD)
-- Destinatarios (emails separados por coma)
+You will be asked for:
+- Start date (YYYY-MM-DD)
+- End date (YYYY-MM-DD)
+- Recipients (comma-separated)
 
-### Ejemplo de uso programático
+### Programmatic example
 
 ```python
 import asyncio
@@ -129,75 +153,81 @@ async def generate_report():
     result = await agent.generate_and_send_report(
         date_from="2025-10-01",
         date_to="2025-10-31",
-        recipients=["finanzas@empresa.com", "gerencia@empresa.com"],
-        subject="Reporte Mensual de Ventas"
+        recipients=["finance@company.com", "management@company.com"],
+        subject="Monthly Crypto Report"
     )
     print(result)
 
 asyncio.run(generate_report())
 ```
 
-### Usar con Claude Desktop
+### Use with Claude Desktop
 
-Configura los servidores MCP en Claude Desktop. Ver [MCP_SDK_GUIDE.md](MCP_SDK_GUIDE.md) para detalles de configuración.
+Configure MCP servers in Claude Desktop. See [MCP_SDK_GUIDE.md](MCP_SDK_GUIDE.md).
 
-## 📊 Estructura del Proyecto
+## 📊 Project Structure
 
 ```
 mcp-reports-agent/
-├── README.md                   # Documentación principal
-├── MCP_SDK_GUIDE.md           # Guía completa del MCP SDK
-├── COMPARISON.md              # Comparación de implementaciones
-├── QUICKSTART.md              # Inicio rápido
-├── requirements.txt           # Dependencias (incluye MCP SDK)
-├── env.example                # Template de configuración
-├── init_db.sql                # Inicialización de BD
+├── README.md                   # Main documentation (this)
+├── MCP_SDK_GUIDE.md            # MCP SDK guide
+├── COMPARISON.md               # Implementation comparison
+├── QUICKSTART.md               # Quick start
+├── requirements.txt            # Dependencies (MCP, Streamlit, OpenAI)
+├── env.example                 # Env template
+├── init_db.sql                 # DB initialization
 │
-├── agent_mcp.py               # ⭐ MCP Client/Orchestrator
-├── mcp_server_postgres.py     # MCP Server para PostgreSQL
-├── mcp_server_gmail.py        # MCP Server para Gmail
-├── report_generator.py        # Generador de reportes HTML/CSV
-└── setup_gmail_oauth.py       # Helper para OAuth2
+├── app.py                      # 🌐 Streamlit UI (Form + Chat)
+├── .streamlit/
+│   └── config.toml             # Streamlit theme/config
+├── load_crypto_transactions.py # Excel loader → fact_transacciones_cripto
+│
+├── agent_mcp.py                # ⭐ MCP client/orchestrator
+├── mcp_server_postgres.py      # MCP Server (PostgreSQL)
+├── mcp_server_gmail.py         # MCP Server (Gmail)
+├── report_generator.py         # HTML/CSV generator (legacy helper)
+└── setup_gmail_oauth.py        # OAuth2 helper
 ```
 
-## 🔒 Seguridad
+## 🔒 Security
 
-- ✅ Credenciales en variables de entorno (no en código)
-- ✅ Conexiones TLS a PostgreSQL
-- ✅ No se registran datos sensibles en logs
-- ✅ Tokens OAuth2 almacenados de forma segura
+- ✅ Environment variables for credentials
+- ✅ TLS connections to PostgreSQL (if enabled)
+- ✅ No sensitive data in logs
+- ✅ App Password (dev) or OAuth2 for Gmail (prod)
 
-## 📧 Formato del Reporte
+## 📧 Email Report (Crypto)
 
-El correo incluye:
-- **Asunto**: Configurable
-- **Cuerpo HTML**: 
-  - 3+ KPIs principales (Total Ventas, Promedio, Variación %)
-  - Tabla con los datos consultados
-  - Top 5 productos/clientes
-- **Adjunto CSV**: Datos completos en formato tabular
+Body includes:
+- Totals in period: purchased and sold (Σ amount × exchange_rate i.e., monto × tc)
+- Top 5 clients by purchases (Σ amount × exchange_rate)
+- Top 5 clients by sales (Σ amount × exchange_rate)
+- Top 5 coins purchased (Σ amount × exchange_rate)
+- Top 5 coins sold (Σ amount × exchange_rate)
+- CSV attachment: period summary
+
+Base table: `fact_transacciones_cripto(fecha, usuario, tipo_transaccion, criptomoneda, monto, tc)`
 
 ## 🐛 Troubleshooting
 
-### Error de conexión a PostgreSQL
+### PostgreSQL connection
 ```bash
-# Verificar que PostgreSQL está corriendo
+# Ensure PostgreSQL is running
 pg_isready -h localhost -p 5432
 
-# Verificar credenciales
+# Check credentials
 psql -h localhost -U postgres -d reports_db
 ```
 
-### Error de autenticación Gmail
+### Gmail authentication
 ```bash
-# Verificar que la API está habilitada
-# Regenerar App Password o refresh token
+# Ensure API enabled / App Password valid or OAuth2 tokens configured
 ```
 
-### Consulta sin resultados
-El agente envía un correo indicando "Sin resultados para el periodo especificado"
+### No results
+The email explicitly states “No results for the selected period” when applicable.
 
-## 📝 Licencia
+## 📝 License
 
 MIT
 
